@@ -7,20 +7,8 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 
-# ============================================
-# SECURE API KEY HANDLING
-# ============================================
-# Priority: 1) Streamlit Cloud secrets 2) Local .env file
-# NEVER hardcode your API key!
-
+# Load local .env file (for local development)
 load_dotenv()
-
-try:
-    # Streamlit Cloud deployment
-    if 'COHERE_API_KEY' in st.secrets:
-        os.environ['COHERE_API_KEY'] = st.secrets['COHERE_API_KEY']
-except Exception:
-    pass  # Running locally with .env file
 
 # ============================================
 # PAGE CONFIG
@@ -55,7 +43,16 @@ st.markdown("""
 
 
 def check_api_key():
-    """Verify API key is configured."""
+    """Load and verify API key."""
+    
+    # Try to load from Streamlit secrets (for Streamlit Cloud)
+    try:
+        if st.secrets.get("COHERE_API_KEY"):
+            os.environ["COHERE_API_KEY"] = st.secrets["COHERE_API_KEY"]
+    except Exception:
+        pass  # No secrets file, will use .env
+    
+    # Check if key exists
     key = os.getenv("COHERE_API_KEY")
     if not key or key == "paste_your_api_key_here":
         st.error("⚠️ Cohere API key not configured!")
@@ -89,7 +86,7 @@ def main():
     st.markdown("Built with **Cohere Embed + Rerank + Command**")
     st.divider()
     
-    # Check API key
+    # Check API key FIRST (this now loads secrets properly)
     check_api_key()
     
     # Sidebar
@@ -119,7 +116,6 @@ def main():
         st.divider()
         
         st.markdown("**Built for Cohere** 🚀")
-        st.caption("[GitHub Repo](https://github.com)")
     
     # Load RAG
     with st.spinner("🔄 Loading NeuroLitRAG..."):
