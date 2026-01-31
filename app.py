@@ -1,177 +1,47 @@
 """
-NeuroLitRAG - Streamlit App
-Secure deployment for Streamlit Cloud
+NeuroLitRAG - Debug Version
 """
 
 import streamlit as st
 import os
 from dotenv import load_dotenv
 
-# Load local .env file (for local development)
 load_dotenv()
 
-# ============================================
-# PAGE CONFIG
-# ============================================
-st.set_page_config(
-    page_title="NeuroLitRAG",
-    page_icon="🧠",
-    layout="wide"
-)
+st.set_page_config(page_title="NeuroLitRAG Debug", page_icon="🧠")
 
-# ============================================
-# STYLING
-# ============================================
-st.markdown("""
-<style>
-    .main-header { 
-        font-size: 2.5rem; 
-        font-weight: bold; 
-        background: linear-gradient(90deg, #3B82F6, #8B5CF6);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-    .citation-box {
-        background-color: #1E293B;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 0.5rem 0;
-        border-left: 3px solid #3B82F6;
-    }
-</style>
-""", unsafe_allow_html=True)
+st.title("🧠 NeuroLitRAG - Debug Mode")
 
+# DEBUG: Check secrets
+st.subheader("1. Checking Secrets...")
 
-def check_api_key():
-    """Load and verify API key."""
-    
-    # Try to load from Streamlit secrets (for Streamlit Cloud)
-    try:
-        if st.secrets.get("COHERE_API_KEY"):
-            os.environ["COHERE_API_KEY"] = st.secrets["COHERE_API_KEY"]
-    except Exception:
-        pass  # No secrets file, will use .env
-    
-    # Check if key exists
-    key = os.getenv("COHERE_API_KEY")
-    if not key or key == "paste_your_api_key_here":
-        st.error("⚠️ Cohere API key not configured!")
-        st.markdown("""
-        **For local development:**
-        1. Create a `.env` file
-        2. Add: `COHERE_API_KEY=your_key_here`
-        
-        **For Streamlit Cloud:**
-        1. Go to App Settings → Secrets
-        2. Add: `COHERE_API_KEY = "your_key_here"`
-        
-        Get a free key: https://dashboard.cohere.com/api-keys
-        """)
-        st.stop()
+try:
+    all_secrets = dict(st.secrets)
+    st.write(f"✅ Secrets found: {list(all_secrets.keys())}")
+except Exception as e:
+    st.write(f"❌ Error accessing secrets: {e}")
+    all_secrets = {}
 
+# DEBUG: Try to get the key
+st.subheader("2. Looking for COHERE_API_KEY...")
 
-@st.cache_resource
-def load_rag():
-    """Initialize and cache RAG system."""
-    from src.pipeline import NeuroLitRAG
-    rag = NeuroLitRAG()
-    rag.load_demo_data()
-    return rag
+if "COHERE_API_KEY" in all_secrets:
+    key = all_secrets["COHERE_API_KEY"]
+    st.write(f"✅ Found in secrets! Starts with: {key[:10]}...")
+    os.environ["COHERE_API_KEY"] = key
+else:
+    st.write("❌ COHERE_API_KEY not found in secrets")
 
+# DEBUG: Check env var
+st.subheader("3. Environment Variable...")
 
-def main():
-    # Header
-    st.markdown('<p class="main-header">🧠 NeuroLitRAG</p>', unsafe_allow_html=True)
-    st.markdown("*AI-Powered Neuroscience Literature Search & Synthesis*")
-    st.markdown("Built with **Cohere Embed + Rerank + Command**")
-    st.divider()
-    
-    # Check API key FIRST (this now loads secrets properly)
-    check_api_key()
-    
-    # Sidebar
-    with st.sidebar:
-        st.header("⚙️ Settings")
-        use_reranking = st.checkbox(
-            "Use Cohere Rerank", 
-            value=True,
-            help="Improves relevance of results"
-        )
-        
-        st.divider()
-        
-        st.header("🔬 How It Works")
-        st.markdown("""
-        1. 🔍 **Embed** your query
-        2. 📚 **Search** vector database
-        3. 🎯 **Rerank** for relevance
-        4. ✍️ **Generate** cited answer
-        """)
-        
-        st.divider()
-        
-        st.header("📊 Demo Data")
-        st.caption("7 neuroscience papers on memory, plasticity, and neurodegeneration")
-        
-        st.divider()
-        
-        st.markdown("**Built for Cohere** 🚀")
-    
-    # Load RAG
-    with st.spinner("🔄 Loading NeuroLitRAG..."):
-        rag = load_rag()
-    
-    # Main interface
-    st.subheader("🔍 Ask a Neuroscience Question")
-    
-    # Example questions
-    examples = [
-        "What is the role of the hippocampus in memory?",
-        "How does dopamine affect reward processing?",
-        "What role do microglia play in Alzheimer's disease?",
-        "What are the mechanisms of synaptic plasticity?",
-    ]
-    
-    cols = st.columns(2)
-    for i, ex in enumerate(examples):
-        with cols[i % 2]:
-            if st.button(ex, key=f"ex_{i}", use_container_width=True):
-                st.session_state.query = ex
-    
-    # Query input
-    query = st.text_input(
-        "Your question:",
-        value=st.session_state.get("query", ""),
-        placeholder="e.g., How does sleep affect memory consolidation?"
-    )
-    
-    # Search button
-    if st.button("🔍 Search", type="primary", use_container_width=True) and query:
-        with st.spinner("🔄 Searching and generating answer..."):
-            result = rag.query(query, use_reranking=use_reranking)
-        
-        # Display answer
-        st.subheader("📝 Answer")
-        st.markdown(result["answer"])
-        
-        # Display citations
-        st.subheader(f"📚 Sources ({result['sources_used']} cited)")
-        
-        for c in result["citations"]:
-            with st.container():
-                st.markdown(f"**[{c['number']}]** {c['authors']} ({c['year']})")
-                st.markdown(f"*{c['title']}*")
-                st.caption(c['journal'])
-                st.divider()
-        
-        # Rerank scores
-        if result.get("rerank_scores"):
-            st.subheader("🎯 Relevance Scores")
-            cols = st.columns(len(result["rerank_scores"]))
-            for i, score in enumerate(result["rerank_scores"]):
-                with cols[i]:
-                    st.metric(f"Source {i+1}", f"{score:.1%}")
+env_key = os.getenv("COHERE_API_KEY")
+if env_key:
+    st.write(f"✅ Env var set! Starts with: {env_key[:10]}...")
+else:
+    st.write("❌ Env var not set")
 
-
-if __name__ == "__main__":
-    main()
+# Show what to do
+st.subheader("4. What You Need")
+st.code('COHERE_API_KEY = "your_key_here"', language="toml")
+st.write("☝️ This exact format should be in your Streamlit Cloud Secrets")
